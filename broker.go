@@ -96,8 +96,7 @@ func (br *defaultBroker) Publish(pub *Session, msg *Publish) {
 
 			}
 
-		}
-		if excluded != nil {
+		} else if excluded != nil {
 			switch reflect.TypeOf(excluded).Kind() {
 			case reflect.Slice:
 				s := reflect.ValueOf(excluded)
