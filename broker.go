@@ -1,6 +1,10 @@
 package turnpike
 
-import "sync"
+import (
+	"reflect"
+	"sync"
+	"strconv"
+)
 
 // Broker is the interface implemented by an object that handles routing EVENTS
 // from Publishers to Subscribers.
@@ -51,19 +55,103 @@ func (br *defaultBroker) Publish(pub *Session, msg *Publish) {
 		excludePublisher = exclude
 	}
 
-	br.lock.RLock()
-	for id, sub := range br.routes[msg.Topic] {
-		// don't send event to publisher
-		if sub == pub && excludePublisher {
-			continue
+	isSendingToEveryOne := true
+	excluded := msg.Options["exclude"]
+	eligible := msg.Options["eligible"]
+
+	if excluded != nil || eligible != nil {
+		isSendingToEveryOne = false
+		if eligible != nil {
+			switch reflect.TypeOf(eligible).Kind() {
+			case reflect.Slice:
+				s := reflect.ValueOf(eligible)
+
+				eligibleIDs := make(map[uint64]uint64)
+				for i := 0; i < s.Len(); i++ {
+
+					value := reflect.ValueOf(s.Index(i).Interface()).Interface().(string)
+
+					convertedI, err := strconv.ParseUint(value, 10, 64)
+
+					if err == nil {
+						eligibleIDs[convertedI] = convertedI
+
+					}
+				}
+
+				br.lock.RLock()
+				for id, sub := range br.routes[msg.Topic] {
+					// don't send event to publisher
+					if sub == pub && excludePublisher {
+						continue
+					}
+					if eligibleIDs[asUint64(sub.Id)] == asUint64(sub.Id){
+						// shallow-copy the template
+						event := evtTemplate
+						event.Subscription = id
+						sub.Send(&event)
+					}
+				}
+				br.lock.RUnlock()
+
+			}
+
+		}
+		if excluded != nil {
+			switch reflect.TypeOf(excluded).Kind() {
+			case reflect.Slice:
+				s := reflect.ValueOf(excluded)
+
+				excludedIDs := make(map[uint64]uint64)
+				for i := 0; i < s.Len(); i++ {
+
+					value := reflect.ValueOf(s.Index(i).Interface()).Interface().(string)
+
+					convertedI, err := strconv.ParseUint(value, 10, 64)
+
+					if err == nil {
+						excludedIDs[convertedI] = convertedI
+
+					}
+				}
+
+				br.lock.RLock()
+				for id, sub := range br.routes[msg.Topic] {
+					// don't send event to publisher
+					if sub == pub && excludePublisher {
+						continue
+					}
+					if excludedIDs[asUint64(sub.Id)] != asUint64(sub.Id){
+						// shallow-copy the template
+						event := evtTemplate
+						event.Subscription = id
+						sub.Send(&event)
+					}
+				}
+				br.lock.RUnlock()
+
+			}
+
 		}
 
-		// shallow-copy the template
-		event := evtTemplate
-		event.Subscription = id
-		sub.Send(&event)
 	}
-	br.lock.RUnlock()
+
+
+	if isSendingToEveryOne {
+		br.lock.RLock()
+		for id, sub := range br.routes[msg.Topic] {
+			// don't send event to publisher
+			if sub == pub && excludePublisher {
+				continue
+			}
+
+			// shallow-copy the template
+			event := evtTemplate
+			event.Subscription = id
+			sub.Send(&event)
+		}
+		br.lock.RUnlock()
+	}
 
 	// only send published message if acknowledge is present and set to true
 	if doPub, _ := msg.Options["acknowledge"].(bool); doPub {
@@ -162,4 +250,23 @@ func (br *defaultBroker) RemoveSession(sub *Session) {
 		}
 	}
 	delete(br.sessions, sub)
+}
+
+func test(t interface{}) {
+	switch reflect.TypeOf(t).Kind() {
+	case reflect.Slice:
+		s := reflect.ValueOf(t)
+
+		for i := 0; i < s.Len(); i++ {
+			log.Println(s.Index(i).Interface())
+		}
+	}
+}
+
+func asUint64(val interface{}) uint64 {
+    ref := reflect.ValueOf(val)
+    if ref.Kind() != reflect.Uint64 {
+        return 0
+    }
+    return uint64(ref.Uint())
 }

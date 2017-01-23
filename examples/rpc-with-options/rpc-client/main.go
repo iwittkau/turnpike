@@ -7,7 +7,7 @@ import (
 	"os"
 	"strconv"
 
-	"gopkg.in/jcelliott/turnpike.v2"
+	"github.com/iwittkau/turnpike"
 )
 
 func main() {
