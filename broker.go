@@ -252,17 +252,6 @@ func (br *defaultBroker) RemoveSession(sub *Session) {
 	delete(br.sessions, sub)
 }
 
-func test(t interface{}) {
-	switch reflect.TypeOf(t).Kind() {
-	case reflect.Slice:
-		s := reflect.ValueOf(t)
-
-		for i := 0; i < s.Len(); i++ {
-			log.Println(s.Index(i).Interface())
-		}
-	}
-}
-
 func asUint64(val interface{}) uint64 {
     ref := reflect.ValueOf(val)
     if ref.Kind() != reflect.Uint64 {
